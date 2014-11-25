@@ -66,7 +66,7 @@
               WaitTimeSeconds: self.config.waitTimeSeconds
             }, self.config.visibilityTimeout != null ? options.VisibilityTimeout = self.config.visibilityTimeout : void 0, options), next);
           }, function(queue, next) {
-            var _ref;
+            var _ref, msg;
             if (!((_ref = queue.Messages) != null ? _ref[0] : void 0)) {
               return next(null);
             }
@@ -74,9 +74,15 @@
               console.log("SqsQueueParallel " + self.config.name + "[" + index + "]: " + queue.Messages.length + " new messages");
             }
             return async.eachSeries(queue.Messages, function(message, next) {
+              try {
+                msg = JSON.parse(message.Body);
+              }
+              catch(e) {
+                msg = message.Body;
+              }
               return self.emit("message", {
                 type: 'message',
-                data: JSON.parse(message.Body) || message.Body,
+                data: msg,
                 message: message,
                 metadata: queue.ResponseMetadata,
                 url: self.url,
@@ -157,19 +163,16 @@
       });
       async.waterfall([
         function(next) {
-          return self.client.listQueues({
-            QueueNamePrefix: self.config.name
+          return self.client.getQueueUrl({
+            QueueName: self.config.name
           }, next);
         }, function(data, next) {
           var re, url, _i, _len, _ref;
           re = new RegExp("/[\\d]+/" + self.config.name + "$");
           self.emit('connection', data.QueueUrls);
-          _ref = data.QueueUrls;
-          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-            url = _ref[_i];
-            if (re.test(url)) {
-              self.emit('connect', self.url = url);
-            }
+          url = data.QueueUrl;
+          if (re.test(url)) {
+            self.emit('connect', self.url = url);
           }
           if (!self.url) {
             self.emit('error', new Error('Queue not found'));
